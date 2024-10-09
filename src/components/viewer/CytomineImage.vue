@@ -44,6 +44,7 @@
           :size="imageSize"
           :extent="extent"
           :crossOrigin="slices[0].imageServerUrl"
+          :temporaryToken="slices[0].temporaryToken"
           ref="baseSource"
           @mounted="setBaseSource()"
           :transition="0"

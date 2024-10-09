@@ -19,6 +19,7 @@
 import ZoomifySource from 'ol/source/Zoomify';
 import {createFromTileUrlFunctions} from 'ol/tileurlfunction';
 import tileSource from 'vuelayers/lib/mixin/tile-source';
+import TileState from 'ol/TileState';
 import TileGrid from 'ol/tilegrid/TileGrid';
 import {DEFAULT_TILE_SIZE} from 'ol/tilegrid/common';
 
@@ -39,6 +40,9 @@ const props = {
   urls: {
     type: Array
   },
+  temporaryToken: {
+    type: String,
+  },
   tileSize: {
     type: Number,
     default: DEFAULT_TILE_SIZE
@@ -57,6 +61,7 @@ function created() { // source: https://github.com/openlayers/openlayers/blob/v5
   const size = this.size;
   const imageWidth = size[0];
   const imageHeight = size[1];
+  const temporaryToken = this.temporaryToken;
   const tierSizeInTiles = [];
   let tileSizeForTierSizeCalculation = this.tileSize;
   while (imageWidth > tileSizeForTierSizeCalculation || imageHeight > tileSizeForTierSizeCalculation) {
@@ -103,6 +108,32 @@ const methods = {
       extent: this.extent,
       transition: this.transition,
       tileSize: this.tileSize
+    });
+    const self = this; 
+
+
+    source.setTileLoadFunction(function(tile, src) {
+      var xhr = new XMLHttpRequest();
+      xhr.responseType = 'blob';
+      xhr.addEventListener('loadend', function (evt) {
+        var data = this.response;
+        if (data !== undefined) {
+          tile.getImage().src = URL.createObjectURL(data);
+        } else {
+          tile.setState(TileState.ERROR);
+        }
+      });
+      xhr.addEventListener('error',  
+        function () {
+            tile.setState(TileState.ERROR);
+      });
+      xhr.open('GET', src);  
+
+
+      // Add the Authorization header here
+      xhr.setRequestHeader('Authorization', 'Bearer '+self.temporaryToken); 
+
+      xhr.send();
     });
 
     if(this.urls) {

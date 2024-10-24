@@ -22,6 +22,7 @@ import tileSource from 'vuelayers/lib/mixin/tile-source';
 import TileState from 'ol/TileState';
 import TileGrid from 'ol/tilegrid/TileGrid';
 import {DEFAULT_TILE_SIZE} from 'ol/tilegrid/common';
+import {SliceInstance} from 'cytomine-client';
 
 const props = {
   tierSizeCalculation: {
@@ -40,8 +41,14 @@ const props = {
   urls: {
     type: Array
   },
+  sliceId: {
+    type: Number,
+  },
   temporaryToken: {
     type: String,
+  },
+  tokenExpiryTime: {
+    type: Number,
   },
   tileSize: {
     type: Number,
@@ -61,7 +68,7 @@ function created() { // source: https://github.com/openlayers/openlayers/blob/v5
   const size = this.size;
   const imageWidth = size[0];
   const imageHeight = size[1];
-  const temporaryToken = this.temporaryToken;
+  const sliceId = this.sliceId;
   const tierSizeInTiles = [];
   let tileSizeForTierSizeCalculation = this.tileSize;
   while (imageWidth > tileSizeForTierSizeCalculation || imageHeight > tileSizeForTierSizeCalculation) {
@@ -88,9 +95,32 @@ function created() { // source: https://github.com/openlayers/openlayers/blob/v5
   this.tierSizeInTiles = tierSizeInTiles;
   this.tileCountUpToTier = tileCountUpToTier;
   this.resolutions = resolutions;
+  this._temporaryToken = this.temporaryToken;
+  this._tokenExpiryTime = this.tokenExpiryTime;
 }
 
 const methods = {
+  async refreshToken() {
+    if(!this._temporaryToken || !this._tokenExpiryTime || this._tokenExpiryTime < (Date.now() / 1000 - 60)) {
+      if(this.lastTokenRequest && Date.now() - this.lastTokenRequest < 120000) {
+        await this.lastRefreshToken;
+      }
+      this.lastRefreshToken = new Promise((resolve, reject) => {
+        this._refreshToken().then(() => {
+          resolve();
+        }).catch((error) => {
+          reject(error);
+        });
+      });
+      this.lastTokenRequest = Date.now();
+      await this.lastRefreshToken;
+    }
+  },
+  async _refreshToken() {
+    let slice = await SliceInstance.fetch(this.sliceId);
+    this._tokenExpiryTime = slice.tokenExpiryTime;
+    this._temporaryToken = slice.temporaryToken;
+  },
   createSource() {
     if(!this.url && !this.urls) {
       throw new Error('Either url or urls properties must be set for ZoomifySource');
@@ -109,31 +139,31 @@ const methods = {
       transition: this.transition,
       tileSize: this.tileSize
     });
-    const self = this; 
+    let self = this; 
 
 
     source.setTileLoadFunction(function(tile, src) {
-      var xhr = new XMLHttpRequest();
-      xhr.responseType = 'blob';
-      xhr.addEventListener('loadend', function (evt) {
-        var data = this.response;
-        if (data !== undefined) {
-          tile.getImage().src = URL.createObjectURL(data);
-        } else {
-          tile.setState(TileState.ERROR);
-        }
-      });
-      xhr.addEventListener('error',  
-        function () {
+      // Check if the token is expired
+      self.refreshToken().then(() => { 
+        var xhr = new XMLHttpRequest();
+        xhr.responseType = 'blob';
+        xhr.addEventListener('loadend', function (evt) {
+          var data = this.response;
+          if (data !== undefined) {
+            tile.getImage().src = URL.createObjectURL(data);
+          } else {
             tile.setState(TileState.ERROR);
+          }
+        });
+        xhr.addEventListener('error',  
+          function () {
+              tile.setState(TileState.ERROR);
+        });
+        xhr.open('GET', src);
+        // Add the Authorization header here
+        xhr.setRequestHeader('Authorization', 'Bearer '+self._temporaryToken); 
+        xhr.send();
       });
-      xhr.open('GET', src);  
-
-
-      // Add the Authorization header here
-      xhr.setRequestHeader('Authorization', 'Bearer '+self.temporaryToken); 
-
-      xhr.send();
     });
 
     if(this.urls) {

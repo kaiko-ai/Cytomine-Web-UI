@@ -209,6 +209,7 @@ import ModifyInteraction from './interactions/ModifyInteraction';
 import {addProj, createProj, getProj} from 'vuelayers/lib/ol-ext';
 
 import View from 'ol/View';
+import Polygon, {fromCircle as polygonFromCircle} from 'ol/geom/Polygon';
 import OverviewMap from 'ol/control/OverviewMap';
 import {KeyboardPan, KeyboardZoom} from 'ol/interaction';
 import {noModifierKeys, targetNotEditable} from 'ol/events/condition';
@@ -259,6 +260,7 @@ export default {
       baseSource: null,
       routedAnnotation: null,
       selectedAnnotation: null,
+      initialView: null,
 
       timeoutSavePosition: null,
 
@@ -502,6 +504,9 @@ export default {
       if(this.routedAnnotation) {
         this.centerViewOnAnnot(this.routedAnnotation, 500);
       }
+      if(this.initialView) {
+        this.zoomTo(this.initialView);
+      }
       this.savePosition();
     },
 
@@ -576,6 +581,7 @@ export default {
     }, 500),
 
     fitZoom() {
+      console.log("Fit zoom");
       this.$refs.view.animate({
         zoom: this.idealZoom,
         center: [this.image.width/2, this.image.height/2]
@@ -713,6 +719,30 @@ export default {
       // Reset container css values as previous
       document.querySelector('.map-container').style.height = '';
     },
+    async zoomTo({index, x, y, width, height}) {
+      console.log('zoomTo index:', index, " this.index:", this.index, x, y, width, height);
+      if (parseInt(this.index) === parseInt(index)) {
+        this.initialView = {index, x, y, width, height};
+        let imageWidth = this.image.width;
+        let imageHeight = this.image.height;
+        
+        // Ensure x and y are within image bounds
+        x = Math.max(0, Math.min(x, imageWidth));
+        y = Math.max(0, Math.min(y, imageHeight));
+
+        // Convert image coordinates to view coordinates
+        if (this.$refs.view) {
+          let geometry = new Polygon([[
+            [x, y],
+            [x + width, y],
+            [x + width, y + height],
+            [x, y + height],
+            [x, y]
+          ]]);
+          this.$refs.view.fit(geometry, {duration: 500, padding: [10, 10, 10, 10], maxZoom: this.maxZoom});
+        }
+      }
+    },
   },
   async created() {
     if(!getProj(this.projectionName)) { // if image opened for the first time
@@ -788,12 +818,16 @@ export default {
     this.loading = false;
   },
   mounted() {
+    console.log("mounted");
     this.$eventBus.$on('updateMapSize', this.updateMapSize);
     this.$eventBus.$on('shortkeyEvent', this.shortkeyHandler);
     this.$eventBus.$on('selectAnnotation', this.selectAnnotationHandler);
     this.setInitialZoom();
+    this.$eventBus.$on('zoomTo', this.zoomTo);
   },
   beforeDestroy() {
+    console.log("unmounting");
+    this.$eventBus.$off('zoomTo', this.zoomTo);
     this.$eventBus.$off('updateMapSize', this.updateMapSize);
     this.$eventBus.$off('shortkeyEvent', this.shortkeyHandler);
     this.$eventBus.$off('selectAnnotation', this.selectAnnotationHandler);

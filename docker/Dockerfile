@@ -24,9 +24,10 @@ ARG ENTRYPOINT_SCRIPTS_VERSION=1.3.0
 FROM node:${NODE_VERSION} as frontend-builder
 WORKDIR /app
 
-ADD . /app
+ADD ./package*.json /app
 WORKDIR /app
 RUN npm install
+ADD . /app
 RUN npm run build
 
 #######################################################################################

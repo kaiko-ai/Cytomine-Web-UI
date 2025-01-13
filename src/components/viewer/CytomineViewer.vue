@@ -85,6 +85,21 @@ export default {
     paramIdViewer() {
       return this.$route.query.viewer;
     },
+    paramZoomX() {
+      return this.$route.query.x;
+    },
+    paramZoomY() {
+      return this.$route.query.y;
+    },
+    paramZoomHeight() {
+      return this.$route.query.height;
+    },
+    paramZoomWidth() {
+      return this.$route.query.width;
+    },
+    paramZoomImageIndex() {
+      return this.$route.query.zoomImageIndex;
+    },
     viewerModule() {
       return this.$store.getters['currentProject/currentViewerModule'];
     },
@@ -191,6 +206,15 @@ export default {
     },
 
     async loadViewer() {
+      // Query zoom parameters
+      let zoomParams = {
+        x: this.paramZoomX,
+        y: this.paramZoomY,
+        width: this.paramZoomWidth,
+        height: this.paramZoomHeight,
+        imageIndex: this.paramZoomImageIndex
+      };
+      console.log('loadViewer', zoomParams);
       try {
         this.$store.commit('currentProject/setCurrentViewer', this.idViewer);
         if(!this.viewer) {
@@ -228,6 +252,8 @@ export default {
           await this.$store.dispatch(this.viewerModule + 'refreshData');
         }
         this.loading = false;
+        // Zoom to view
+        await this.applyUrlZoomArguments(zoomParams);
       }
       catch(err) {
         console.log(err);
@@ -267,6 +293,27 @@ export default {
       }
     },
 
+    async applyUrlZoomArguments({x, y, width, height, imageIndex} = {}) {
+        console.log('applyUrlZoomArguments', x, y, width, height, imageIndex);
+        if (x && y && width && height) {
+            const targetIndex = this.indexImages.includes(imageIndex) ? imageIndex : this.indexImages[0];
+
+            if (!this.viewer.images[targetIndex]) {
+                console.warn(`Image index ${imageIndex} not found in viewer.`);
+                return;
+            }
+            await this.$nextTick();
+            console.log('zoomTo', targetIndex, x, y, width, height);
+            this.$eventBus.$emit('zoomTo', {
+                index: targetIndex,
+                x: parseFloat(x),
+                y: parseFloat(y),
+                width: parseFloat(width),
+                height: parseFloat(height),
+            });
+        }
+    },
+  
     shortkeyEvent(event) {
       this.$eventBus.$emit('shortkeyEvent', event.srcKey);
     }

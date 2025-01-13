@@ -96,9 +96,11 @@ import App from './App.vue';
 Vue.config.productionTip = false;
 Vue.prototype.$eventBus = new Vue();
 
-new Vue({
+const app = new Vue({
   render: h => h(App),
   router,
   store,
   i18n
 }).$mount('#app');
+
+window.appVuejs = app;

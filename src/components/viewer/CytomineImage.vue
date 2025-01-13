@@ -728,7 +728,7 @@ export default {
         
         // Ensure x and y are within image bounds
         x = Math.max(0, Math.min(x, imageWidth));
-        y = Math.max(0, Math.min(y, imageHeight));
+        y = Math.max(0, Math.min(imageHeight - y, imageHeight));
 
         // Convert image coordinates to view coordinates
         if (this.$refs.view) {
